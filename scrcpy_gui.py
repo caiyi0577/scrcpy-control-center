@@ -93,7 +93,7 @@ except ImportError:  # pragma: no cover - optional until the dependency is insta
     win32process = None
 
 from PySide6.QtCore import QProcess, QSettings, QTimer, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QFont
+from PySide6.QtGui import QCloseEvent, QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractSpinBox,
@@ -124,6 +124,15 @@ from screen_power import ScreenPowerController, physical_screen_on
 
 APP_NAME = "Scrcpy Control Center"
 SCRCPY_PACKAGE_ID = "Genymobile.scrcpy"
+
+
+def resource_path(relative_path: str) -> Path:
+    """Resolve a bundled resource in both source and PyInstaller builds."""
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    else:
+        base = Path(__file__).resolve().parent
+    return base / relative_path
 
 
 def local_app_data() -> Path:
@@ -1839,6 +1848,9 @@ def main() -> None:
     app.setApplicationName(APP_NAME)
     app.setOrganizationName("OpenAI")
     app.setFont(QFont("Segoe UI", 10))
+    icon_path = resource_path("assets/scrcpy-control-center.ico")
+    if icon_path.is_file():
+        app.setWindowIcon(QIcon(str(icon_path)))
     window = MainWindow()
     window.show()
     if "--check-startup" in sys.argv:

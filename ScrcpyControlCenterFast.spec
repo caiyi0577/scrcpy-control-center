@@ -20,6 +20,7 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
+    icon='assets/scrcpy-control-center.ico',
     exclude_binaries=True,
     name='ScrcpyControlCenterFast',
     debug=False,

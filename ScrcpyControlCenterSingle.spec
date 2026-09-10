@@ -54,6 +54,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
+    icon='assets/scrcpy-control-center.ico',
     name='ScrcpyControlCenterSingle',
     debug=False,
     bootloader_ignore_signals=False,
