@@ -1,0 +1,26 @@
+name: Windows checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Compile Python modules
+        run: python -m compileall -q scrcpy_gui.py screen_power.py tests
+
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -p "test_*.py"

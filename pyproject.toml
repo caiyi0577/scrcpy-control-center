@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scrcpy-control-center"
+version = "1.0.0"
+description = "A practical Windows frontend and launcher for the official Genymobile scrcpy."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.8",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[tool.setuptools]
+py-modules = ["scrcpy_gui", "screen_power"]
+
+[tool.unittest]
+test-command = "python -m unittest discover -s tests -p 'test_*.py'"
