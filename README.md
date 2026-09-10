@@ -5,6 +5,10 @@ Scrcpy Control Center is a compact Windows frontend and launcher for the officia
 original video window and adds a practical control panel for device discovery,
 wireless ADB, launch options, updates, shortcuts, and independent app windows.
 
+## Interface preview
+
+![Scrcpy Control Center interface](docs/scrcpy-control-center.jpg)
+
 ## Features
 
 - Prefers the scrcpy already installed on the computer; the bundled official
