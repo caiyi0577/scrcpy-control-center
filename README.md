@@ -7,7 +7,7 @@ wireless ADB, launch options, updates, shortcuts, and independent app windows.
 
 ## Interface preview
 
-![Scrcpy Control Center interface](docs/scrcpy-control-center.jpg)
+![Scrcpy Control Center interface](docs/scrcpy-control-center-current.png)
 
 ## Features
 
