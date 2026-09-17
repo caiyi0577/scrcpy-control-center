@@ -92,7 +92,18 @@ try:
 except ImportError:  # pragma: no cover - optional until the dependency is installed
     win32process = None
 
-from PySide6.QtCore import QProcess, QSettings, QTimer, Qt, Signal
+from PySide6.QtCore import (
+    QAbstractAnimation,
+    QEasingCurve,
+    QPoint,
+    QProcess,
+    QPropertyAnimation,
+    QSettings,
+    QSize,
+    QTimer,
+    Qt,
+    Signal,
+)
 from PySide6.QtGui import QCloseEvent, QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -113,6 +124,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QScrollArea,
     QFrame,
+    QGraphicsOpacityEffect,
     QSizePolicy,
     QSpinBox,
     QVBoxLayout,
@@ -258,20 +270,28 @@ class FloatingToolbar(QWidget):
         layout.setSpacing(6)
 
         buttons = [
-            ("‹", "返回", "back"),
-            ("⌂", "主页", "home"),
-            ("▤", "最近任务", "recent"),
-            ("☼", "开启手机屏幕", "screen_on"),
-            ("●", "关闭手机屏幕", "screen_off"),
-            ("↻", "重新连接", "restart"),
+            ("toolbar-back.svg", "返回", "back"),
+            ("toolbar-home.svg", "主页", "home"),
+            ("toolbar-recent.svg", "最近任务", "recent"),
+            ("toolbar-screen-on.svg", "开启手机屏幕", "screen_on"),
+            ("toolbar-screen-off.svg", "关闭手机屏幕", "screen_off"),
+            ("toolbar-restart.svg", "重新连接", "restart"),
         ]
         self.screen_buttons = []
-        for text, tooltip, action in buttons:
-            button = QPushButton(text)
+        self._button_animations: dict[QPushButton, QPropertyAnimation] = {}
+        for icon_name, tooltip, action in buttons:
+            button = QPushButton()
+            icon_path = resource_path(Path("assets") / icon_name)
+            if icon_path.is_file():
+                button.setIcon(QIcon(str(icon_path)))
+            button.setIconSize(QSize(20, 20))
             button.setToolTip(tooltip)
             button.setAccessibleName(tooltip)
             button.setFixedSize(42, 40)
-            button.clicked.connect(lambda _checked=False, name=action: self.action_requested.emit(name))
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(
+                lambda _checked=False, name=action, target=button: self._button_clicked(target, name)
+            )
             layout.addWidget(button)
             if action in {"screen_on", "screen_off"}:
                 self.screen_buttons.append(button)
@@ -279,40 +299,81 @@ class FloatingToolbar(QWidget):
         self.setStyleSheet(
             """
             #floatingToolbar {
-                background: rgba(25, 31, 43, 235);
-                border: 1px solid rgba(255, 255, 255, 35);
+                background: rgba(20, 27, 40, 250);
+                border: 1px solid rgba(155, 185, 230, 115);
                 border-radius: 13px;
             }
             #floatingToolbar QPushButton {
                 color: #f6f8fc;
-                background: rgba(255, 255, 255, 16);
-                border: 1px solid rgba(255, 255, 255, 22);
+                background: #2a3850;
+                border: 1px solid #4d6384;
                 border-radius: 9px;
-                font-size: 18px;
+                padding: 0px;
             }
             #floatingToolbar QPushButton:hover {
-                background: #4977ef;
+                background: #456fca;
+                border: 1px solid #91b8ff;
+            }
+            #floatingToolbar QPushButton:pressed {
+                background: #6a98ee;
+                border: 1px solid #d0e0ff;
             }
             """
         )
 
+    def _button_clicked(self, button: QPushButton, action: str) -> None:
+        self.animate_button(button)
+        self.action_requested.emit(action)
+
+    def animate_button(self, button: QPushButton) -> None:
+        """Give every toolbar click a short, visible press pulse."""
+
+        effect = button.graphicsEffect()
+        if not isinstance(effect, QGraphicsOpacityEffect):
+            effect = QGraphicsOpacityEffect(button)
+            button.setGraphicsEffect(effect)
+        effect.setOpacity(1.0)
+        previous = self._button_animations.get(button)
+        if previous:
+            previous.stop()
+        animation = QPropertyAnimation(effect, b"opacity", button)
+        animation.setDuration(220)
+        animation.setStartValue(1.0)
+        animation.setKeyValueAt(0.22, 0.58)
+        animation.setKeyValueAt(0.58, 1.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.finished.connect(lambda target=button: self._button_animations.pop(target, None))
+        self._button_animations[button] = animation
+        animation.start(QAbstractAnimation.DeletionPolicy.KeepWhenStopped)
+
     def track_scrcpy_window(self) -> None:
         if not win32gui:
+            self.hide()
             return
         if self.window_handle_provider:
             hwnd = self.window_handle_provider()
         else:
             hwnd = win32gui.FindWindow(None, self.window_title)
-        if not hwnd or not win32gui.IsWindow(hwnd):
+        if (
+            not hwnd
+            or not win32gui.IsWindow(hwnd)
+            or not win32gui.IsWindowVisible(hwnd)
+            or win32gui.IsIconic(hwnd)
+        ):
+            if self.isVisible():
+                self.hide()
             return
         left, top, right, _bottom = win32gui.GetWindowRect(hwnd)
         self.adjustSize()
         x = right + 8
         y = top + 48
 
-        # Keep the toolbar visible when the scrcpy window is near a screen
-        # edge. This also avoids making it look detached after a window move.
-        screen = self.screen()
+        # Resolve the monitor from scrcpy itself, not from the toolbar. The
+        # toolbar may still be on the previous monitor while scrcpy is being
+        # dragged, which used to clamp it to the wrong screen edge.
+        center = QPoint((left + right) // 2, (top + _bottom) // 2)
+        screen = QApplication.screenAt(center)
         if screen:
             available = screen.availableGeometry()
             if x + self.width() > available.right() + 1:
@@ -322,6 +383,8 @@ class FloatingToolbar(QWidget):
             x = max(available.left(), x)
             y = max(available.top(), y)
         self.move(x, y)
+        if not self.isVisible():
+            self.show()
 
 
 class MainWindow(QMainWindow):
