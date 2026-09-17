@@ -17,6 +17,7 @@ _QT_LIBRARY_DIRS: list[Path] = []
 
 
 _MONITOR_DEFAULTTONEAREST = 2
+_GA_ROOT = 2
 _SWP_NOSIZE = 0x0001
 _SWP_NOZORDER = 0x0004
 _SWP_NOACTIVATE = 0x0010
@@ -47,6 +48,10 @@ if sys.platform == "win32":
         _NATIVE_USER32 = ctypes.WinDLL("user32", use_last_error=True)
         _NATIVE_USER32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
         _NATIVE_USER32.MonitorFromWindow.restype = ctypes.c_void_p
+        _NATIVE_USER32.GetForegroundWindow.argtypes = []
+        _NATIVE_USER32.GetForegroundWindow.restype = wintypes.HWND
+        _NATIVE_USER32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+        _NATIVE_USER32.GetAncestor.restype = wintypes.HWND
         _NATIVE_USER32.GetMonitorInfoW.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(_NativeMonitorInfo),
@@ -422,6 +427,11 @@ class FloatingToolbar(QWidget):
                 self.hide()
             return
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        toolbar_hwnd = int(self.winId())
+        if not self._is_foreground_related(hwnd, toolbar_hwnd):
+            if self.isVisible():
+                self.hide()
+            return
 
         # GetWindowRect and SetWindowPos both use native desktop pixels. Using
         # QWidget.move() here makes Qt convert the coordinates again on a
@@ -431,7 +441,6 @@ class FloatingToolbar(QWidget):
         if not self.isVisible():
             self.show()
 
-        toolbar_hwnd = int(self.winId())
         try:
             toolbar_left, toolbar_top, toolbar_right, toolbar_bottom = win32gui.GetWindowRect(toolbar_hwnd)
             toolbar_width = max(1, toolbar_right - toolbar_left)
@@ -470,6 +479,20 @@ class FloatingToolbar(QWidget):
             x = max(available.left(), x)
             y = max(available.top(), y)
         self.move(x, y)
+
+    @staticmethod
+    def _is_foreground_related(scrcpy_hwnd: int, toolbar_hwnd: int) -> bool:
+        """Keep the always-on-top toolbar visible only with its scrcpy window."""
+
+        if not _NATIVE_USER32:
+            return True
+        foreground = int(_NATIVE_USER32.GetForegroundWindow() or 0)
+        if not foreground:
+            return False
+        if foreground in {scrcpy_hwnd, toolbar_hwnd}:
+            return True
+        root = int(_NATIVE_USER32.GetAncestor(foreground, _GA_ROOT) or 0)
+        return root in {scrcpy_hwnd, toolbar_hwnd}
 
     @staticmethod
     def _native_work_area(hwnd: int) -> tuple[int, int, int, int] | None:
