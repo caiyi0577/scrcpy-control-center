@@ -582,13 +582,16 @@ class MainWindow(QMainWindow):
 
     def build_ui(self) -> None:
         scroll = QScrollArea()
+        scroll.setObjectName("mainScroll")
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         root = QWidget()
+        root.setObjectName("mainRoot")
         root.setMinimumSize(0, 0)
         root.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         scroll.setWidget(root)
+        scroll.viewport().setObjectName("mainViewport")
         self.setCentralWidget(scroll)
         main_layout = QVBoxLayout(root)
         main_layout.setContentsMargins(12, 10, 12, 12)
@@ -1136,6 +1139,9 @@ class MainWindow(QMainWindow):
         style = (
             """
             QMainWindow { background: #10141b; }
+            QScrollArea#mainScroll,
+            QWidget#mainViewport,
+            QWidget#mainRoot { background: #10141b; }
             QWidget { color: #edf3fb; font-size: 12px; }
             QGroupBox {
                 border: 1px solid #303b4d;
@@ -1248,6 +1254,9 @@ class MainWindow(QMainWindow):
         if self.selected_theme() == "light":
             style += """
             QMainWindow { background: #f2f5f9; }
+            QScrollArea#mainScroll,
+            QWidget#mainViewport,
+            QWidget#mainRoot { background: #f2f5f9; }
             QWidget { color: #243244; }
             QGroupBox { border-color: #cbd5e1; background: #ffffff; }
             QGroupBox::title { color: #536274; }
@@ -1286,6 +1295,11 @@ class MainWindow(QMainWindow):
             }
             QCheckBox::indicator, QRadioButton::indicator {
                 border-color: #9eacbd;
+                background: #ffffff;
+            }
+            QRadioButton::indicator:hover { border-color: #527bdc; }
+            QRadioButton::indicator:checked {
+                border: 4px solid #426fe4;
                 background: #ffffff;
             }
             QPushButton {
