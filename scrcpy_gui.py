@@ -543,6 +543,8 @@ class MainWindow(QMainWindow):
         self.load_settings()
         self._loading_settings = False
         self.apply_styles()
+        self.status_label.setFixedHeight(30)
+        self.startup_progress.setFixedHeight(30)
         self.startup_progress.setValue(0)
         self.startup_progress.setFormat("正在准备启动… %p%")
         QTimer.singleShot(0, self.initialize_runtime)
@@ -568,7 +570,9 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(8)
 
         header = QHBoxLayout()
+        header.setSpacing(8)
         title_box = QVBoxLayout()
+        title_box.setSpacing(2)
         title = QLabel("scrcpy 控制中心")
         title.setObjectName("title")
         subtitle = QLabel("无线连接、启动参数与运行中控制")
@@ -579,15 +583,18 @@ class MainWindow(QMainWindow):
         header.addStretch()
         self.status_label = QLabel("准备就绪")
         self.status_label.setObjectName("status")
-        header.addWidget(self.status_label)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setMinimumWidth(84)
+        self.status_label.setFixedHeight(30)
+        header.addWidget(self.status_label, 0, Qt.AlignmentFlag.AlignVCenter)
         self.startup_progress = QProgressBar()
         self.startup_progress.setRange(0, 100)
         self.startup_progress.setValue(0)
         self.startup_progress.setTextVisible(True)
         self.startup_progress.setFormat("正在准备启动… %p%")
-        self.startup_progress.setFixedWidth(170)
+        self.startup_progress.setFixedSize(170, 30)
         self.startup_progress.setToolTip("启动器正在后台检测 scrcpy、adb 和设备")
-        header.addWidget(self.startup_progress)
+        header.addWidget(self.startup_progress, 0, Qt.AlignmentFlag.AlignVCenter)
         main_layout.addLayout(header)
 
         # Three-column compact layout: it keeps the control cards shallow so
@@ -610,10 +617,10 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(500)
-        self.log_view.setMinimumHeight(42)
-        self.log_view.setMaximumHeight(72)
+        self.log_view.setFixedHeight(76)
         self.log_view.setPlaceholderText("这里会显示 adb、scrcpy 和更新操作的结果。")
         log_layout.addWidget(self.log_view)
+        log_group.setFixedHeight(112)
         shortcut_group = QGroupBox("常用快捷指令")
         shortcut_layout = QVBoxLayout(shortcut_group)
         self.shortcut_list = QLabel(
@@ -628,6 +635,7 @@ class MainWindow(QMainWindow):
         self.shortcut_list.setObjectName("shortcutList")
         self.shortcut_list.setWordWrap(True)
         shortcut_layout.addWidget(self.shortcut_list)
+        shortcut_group.setFixedHeight(150)
 
         info_row = QHBoxLayout()
         info_row.setSpacing(8)
@@ -640,6 +648,7 @@ class MainWindow(QMainWindow):
         self.path_label.setObjectName("pathLabel")
         self.path_label.setMinimumWidth(0)
         self.path_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.path_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         footer.addWidget(self.path_label, 1)
         self.refresh_button = QPushButton("刷新设备")
         self.refresh_button.clicked.connect(self.refresh_devices)
@@ -727,6 +736,7 @@ class MainWindow(QMainWindow):
         layout = QFormLayout(group)
         layout.setVerticalSpacing(3)
         layout.setHorizontalSpacing(8)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.max_size = QComboBox()
         for label, value in (
             ("设备原始分辨率", 0),
@@ -777,7 +787,7 @@ class MainWindow(QMainWindow):
         self.audio_output_combo.addItem("跟随系统默认（推荐）", "")
         self.audio_output_combo.setMinimumWidth(190)
         self.audio_output_combo.setToolTip(
-            "选择 scrcpy 音频在电脑上的播放设备。该设置只针对 scrcpy，不会切换整台电脑的默认音频。"
+            "选择 scrcpy 音频出口；手机端仅手机播放，要求 Android 13+。该设置只针对 scrcpy。"
         )
         self.audio_output_combo.currentIndexChanged.connect(self.on_audio_output_changed)
         layout.addRow("音频出口", self.audio_output_combo)
@@ -800,7 +810,7 @@ class MainWindow(QMainWindow):
         try:
             combo.clear()
             combo.addItem("跟随系统默认（推荐）", "")
-            combo.addItem("手机端（仅手机播放，Android 13+）", AUDIO_OUTPUT_PHONE)
+            combo.addItem("手机端（仅手机播放）", AUDIO_OUTPUT_PHONE)
             endpoint_ids = set()
             for device in devices:
                 endpoint_ids.add(device.endpoint_id)
@@ -923,6 +933,7 @@ class MainWindow(QMainWindow):
         layout = QFormLayout(group)
         layout.setVerticalSpacing(3)
         layout.setHorizontalSpacing(8)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.orientation_combo = QComboBox()
         orientations = [
             ("自动", ""),
@@ -1089,20 +1100,20 @@ class MainWindow(QMainWindow):
             }
             QLabel#title { font-size: 19px; font-weight: 600; color: #f4f7fc; }
             QLabel#subtitle, QLabel#muted, QLabel#pathLabel { color: #92a0b5; }
-            QLabel#shortcutList { color: #b7c4d8; padding: 2px 4px 1px; line-height: 1.35; }
-            QLabel#status { color: #64d39b; padding: 5px 9px; background: #1b3a2d; border-radius: 7px; }
-            QLabel#version { font-size: 14px; font-weight: 600; }
+            QLabel#shortcutList { color: #b7c4d8; padding: 1px 2px; line-height: 1.3; }
+            QLabel#status { color: #64d39b; padding: 0 10px; min-height: 30px; background: #1b3a2d; border-radius: 7px; }
+            QLabel#version { font-size: 13px; font-weight: 600; }
             QComboBox, QLineEdit, QSpinBox, QPlainTextEdit {
-                min-height: 26px;
+                min-height: 30px;
                 border: 1px solid #344156;
                 border-radius: 7px;
-                padding: 3px 9px;
+                padding: 3px 10px;
                 background: #222b38;
                 color: #edf3fb;
                 selection-background-color: #426fe4;
             }
             QComboBox {
-                min-height: 28px;
+                min-height: 30px;
                 padding: 0 38px 0 12px;
             }
             QComboBox:hover, QComboBox:focus {
@@ -1154,10 +1165,10 @@ class MainWindow(QMainWindow):
                 border-radius: 6px;
                 background: #426fe4;
             }
-            QCheckBox { spacing: 6px; min-height: 21px; }
+            QCheckBox { spacing: 6px; min-height: 23px; }
             QPushButton {
-                min-height: 26px;
-                padding: 3px 9px;
+                min-height: 30px;
+                padding: 3px 10px;
                 border: 1px solid #3b4a62;
                 border-radius: 7px;
                 background: #222b38;
@@ -1281,9 +1292,9 @@ class MainWindow(QMainWindow):
     def set_status(self, message: str, good: bool = True) -> None:
         self.status_label.setText(message)
         self.status_label.setStyleSheet(
-            "color: #64d39b; padding: 8px 12px; background: #1b3a2d; border-radius: 8px;"
+            "color: #64d39b; padding: 0 10px; min-height: 30px; background: #1b3a2d; border-radius: 7px;"
             if good
-            else "color: #ffbe7b; padding: 8px 12px; background: #49301f; border-radius: 8px;"
+            else "color: #ffbe7b; padding: 0 10px; min-height: 30px; background: #49301f; border-radius: 7px;"
         )
 
     def selected_serial(self) -> str:
