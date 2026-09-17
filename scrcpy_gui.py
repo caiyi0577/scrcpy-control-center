@@ -164,6 +164,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QGroupBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -503,7 +504,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.resize(820, 620)
+        self.resize(1080, 780)
 
         self.settings = QSettings("OpenAI", "ScrcpyControlCenter")
         self._loading_settings = True
@@ -589,23 +590,20 @@ class MainWindow(QMainWindow):
         header.addWidget(self.startup_progress)
         main_layout.addLayout(header)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(12)
-        top_row.addWidget(self.build_device_group(), 1)
-        top_row.addWidget(self.build_update_group(), 1)
-        main_layout.addLayout(top_row)
-
-        settings_row = QHBoxLayout()
-        settings_row.setSpacing(8)
-        settings_row.addWidget(self.build_start_group(), 1)
-        settings_row.addWidget(self.build_video_audio_group(), 1)
-        main_layout.addLayout(settings_row)
-
-        bottom_settings_row = QHBoxLayout()
-        bottom_settings_row.setSpacing(8)
-        bottom_settings_row.addWidget(self.build_window_group(), 1)
-        bottom_settings_row.addWidget(self.build_wireless_group(), 1)
-        main_layout.addLayout(bottom_settings_row)
+        # Three-column compact layout: it keeps the control cards shallow so
+        # the complete launcher fits on one 1080p desktop without scrolling.
+        settings_grid = QGridLayout()
+        settings_grid.setHorizontalSpacing(8)
+        settings_grid.setVerticalSpacing(8)
+        for column in range(3):
+            settings_grid.setColumnStretch(column, 1)
+        settings_grid.addWidget(self.build_device_group(), 0, 0)
+        settings_grid.addWidget(self.build_update_group(), 0, 1)
+        settings_grid.addWidget(self.build_wireless_group(), 0, 2)
+        settings_grid.addWidget(self.build_start_group(), 1, 0)
+        settings_grid.addWidget(self.build_video_audio_group(), 1, 1)
+        settings_grid.addWidget(self.build_window_group(), 1, 2)
+        main_layout.addLayout(settings_grid)
 
         log_group = QGroupBox("运行日志")
         log_layout = QVBoxLayout(log_group)
@@ -616,8 +614,6 @@ class MainWindow(QMainWindow):
         self.log_view.setMaximumHeight(72)
         self.log_view.setPlaceholderText("这里会显示 adb、scrcpy 和更新操作的结果。")
         log_layout.addWidget(self.log_view)
-        main_layout.addWidget(log_group, 1)
-
         shortcut_group = QGroupBox("常用快捷指令")
         shortcut_layout = QVBoxLayout(shortcut_group)
         self.shortcut_list = QLabel(
@@ -632,7 +628,12 @@ class MainWindow(QMainWindow):
         self.shortcut_list.setObjectName("shortcutList")
         self.shortcut_list.setWordWrap(True)
         shortcut_layout.addWidget(self.shortcut_list)
-        main_layout.addWidget(shortcut_group)
+
+        info_row = QHBoxLayout()
+        info_row.setSpacing(8)
+        info_row.addWidget(log_group, 3)
+        info_row.addWidget(shortcut_group, 2)
+        main_layout.addLayout(info_row)
 
         footer = QHBoxLayout()
         self.path_label = QLabel()
@@ -663,6 +664,7 @@ class MainWindow(QMainWindow):
     def build_device_group(self) -> QGroupBox:
         group = QGroupBox("设备")
         layout = QVBoxLayout(group)
+        layout.setSpacing(4)
         self.device_combo = QComboBox()
         self.device_combo.currentIndexChanged.connect(self.on_device_changed)
         layout.addWidget(self.device_combo)
@@ -676,6 +678,7 @@ class MainWindow(QMainWindow):
     def build_update_group(self) -> QGroupBox:
         group = QGroupBox("scrcpy 版本")
         layout = QVBoxLayout(group)
+        layout.setSpacing(4)
         row = QHBoxLayout()
         self.version_label = QLabel("当前版本：检查中")
         self.version_label.setObjectName("version")
@@ -695,6 +698,7 @@ class MainWindow(QMainWindow):
     def build_start_group(self) -> QGroupBox:
         group = QGroupBox("启动前与手机状态")
         layout = QVBoxLayout(group)
+        layout.setSpacing(2)
         self.keep_awake = QCheckBox("保持手机唤醒")
         self.turn_screen_off = QCheckBox("启动时关闭手机屏幕")
         self.screen_on_start = QCheckBox("启动时唤醒手机")
@@ -721,6 +725,8 @@ class MainWindow(QMainWindow):
     def build_video_audio_group(self) -> QGroupBox:
         group = QGroupBox("画面与声音")
         layout = QFormLayout(group)
+        layout.setVerticalSpacing(3)
+        layout.setHorizontalSpacing(8)
         self.max_size = QComboBox()
         for label, value in (
             ("设备原始分辨率", 0),
@@ -915,6 +921,8 @@ class MainWindow(QMainWindow):
     def build_window_group(self) -> QGroupBox:
         group = QGroupBox("窗口与显示变换")
         layout = QFormLayout(group)
+        layout.setVerticalSpacing(3)
+        layout.setHorizontalSpacing(8)
         self.orientation_combo = QComboBox()
         orientations = [
             ("自动", ""),
@@ -971,6 +979,7 @@ class MainWindow(QMainWindow):
     def build_wireless_group(self) -> QGroupBox:
         group = QGroupBox("无线 ADB")
         outer = QVBoxLayout(group)
+        outer.setSpacing(4)
 
         connect_row = QHBoxLayout()
         self.wifi_address = QLineEdit()
@@ -1069,7 +1078,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid #303b4d;
                 border-radius: 10px;
                 margin-top: 10px;
-                padding: 8px 8px 7px;
+                padding: 6px 7px 5px;
                 background: #171c25;
             }
             QGroupBox::title {
@@ -1084,16 +1093,16 @@ class MainWindow(QMainWindow):
             QLabel#status { color: #64d39b; padding: 5px 9px; background: #1b3a2d; border-radius: 7px; }
             QLabel#version { font-size: 14px; font-weight: 600; }
             QComboBox, QLineEdit, QSpinBox, QPlainTextEdit {
-                min-height: 28px;
+                min-height: 26px;
                 border: 1px solid #344156;
                 border-radius: 7px;
-                padding: 4px 10px;
+                padding: 3px 9px;
                 background: #222b38;
                 color: #edf3fb;
                 selection-background-color: #426fe4;
             }
             QComboBox {
-                min-height: 30px;
+                min-height: 28px;
                 padding: 0 38px 0 12px;
             }
             QComboBox:hover, QComboBox:focus {
@@ -1145,10 +1154,10 @@ class MainWindow(QMainWindow):
                 border-radius: 6px;
                 background: #426fe4;
             }
-            QCheckBox { spacing: 6px; min-height: 22px; }
+            QCheckBox { spacing: 6px; min-height: 21px; }
             QPushButton {
-                min-height: 28px;
-                padding: 4px 11px;
+                min-height: 26px;
+                padding: 3px 9px;
                 border: 1px solid #3b4a62;
                 border-radius: 7px;
                 background: #222b38;
@@ -1239,10 +1248,10 @@ class MainWindow(QMainWindow):
         self.pair_address.setText(self.settings.value("pair_address", "", type=str))
         self.pair_code.setText(self.settings.value("pair_code", "", type=str))
         layout_version = self.settings.value("layout_version", 0, type=int)
-        if layout_version < 2:
+        if layout_version < 3:
             self.settings.remove("window_geometry")
-            self.settings.setValue("layout_version", 2)
-            self.resize(820, 620)
+            self.settings.setValue("layout_version", 3)
+            self.resize(1080, 780)
         elif self.remember_window.isChecked():
             geometry = self.settings.value("window_geometry")
             if geometry:
@@ -1251,7 +1260,7 @@ class MainWindow(QMainWindow):
         if screen:
             available = screen.availableGeometry()
             if self.width() > int(available.width() * 0.9) or self.height() > int(available.height() * 0.9):
-                self.resize(min(820, available.width() - 40), min(620, available.height() - 80))
+                self.resize(min(1080, available.width() - 40), min(780, available.height() - 80))
 
     def update_path_label(self) -> None:
         scrcpy_text = str(self.scrcpy_path) if self.scrcpy_path else "未找到 scrcpy"
