@@ -1143,6 +1143,7 @@ class MainWindow(QMainWindow):
 
     def apply_styles(self) -> None:
         arrow_icon = (Path(__file__).resolve().parent / "assets" / "chevron-down.svg").as_posix()
+        check_icon = (Path(__file__).resolve().parent / "assets" / "check.svg").as_posix()
         style = (
             """
             QMainWindow { background: #10141b; }
@@ -1231,6 +1232,23 @@ class MainWindow(QMainWindow):
                 background: #426fe4;
             }
             QCheckBox { spacing: 6px; min-height: 23px; }
+            QCheckBox::indicator {
+                width: 15px;
+                height: 15px;
+                border: 1px solid #536580;
+                border-radius: 4px;
+                background: #222b38;
+            }
+            QCheckBox::indicator:hover { border-color: #91b8ff; }
+            QCheckBox::indicator:checked {
+                border-color: #426fe4;
+                background: #426fe4;
+                image: url("__CHECK_ICON__");
+            }
+            QCheckBox::indicator:disabled {
+                border-color: #465469;
+                background: #1b2430;
+            }
             QPushButton {
                 min-height: 30px;
                 max-height: 30px;
@@ -1315,8 +1333,20 @@ class MainWindow(QMainWindow):
                 color: #31425a;
             }
             QCheckBox::indicator {
+                width: 15px;
+                height: 15px;
                 border-color: #9eacbd;
                 background: #ffffff;
+            }
+            QCheckBox::indicator:hover { border-color: #527bdc; }
+            QCheckBox::indicator:checked {
+                border-color: #426fe4;
+                background: #426fe4;
+                image: url("__CHECK_ICON__");
+            }
+            QCheckBox::indicator:disabled {
+                border-color: #c7d0dc;
+                background: #e8edf3;
             }
             QPushButton {
                 border-color: #b7c4d3;
@@ -1338,7 +1368,9 @@ class MainWindow(QMainWindow):
                 color: #ffffff;
             }
             """
-        self.setStyleSheet(style.replace("__ARROW_ICON__", arrow_icon))
+        self.setStyleSheet(
+            style.replace("__ARROW_ICON__", arrow_icon).replace("__CHECK_ICON__", check_icon)
+        )
 
     def save_settings(self, *_args) -> None:
         if self._loading_settings:
