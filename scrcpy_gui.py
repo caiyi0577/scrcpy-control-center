@@ -270,24 +270,25 @@ class FloatingToolbar(QWidget):
         layout.setSpacing(6)
 
         buttons = [
-            ("toolbar-back.svg", "返回", "back"),
-            ("toolbar-home.svg", "主页", "home"),
-            ("toolbar-recent.svg", "最近任务", "recent"),
-            ("toolbar-screen-on.svg", "开启手机屏幕", "screen_on"),
-            ("toolbar-screen-off.svg", "关闭手机屏幕", "screen_off"),
-            ("toolbar-restart.svg", "重新连接", "restart"),
+            ("toolbar-back.svg", "", "返回", "back"),
+            ("toolbar-home.svg", "", "主页", "home"),
+            ("toolbar-recent.svg", "", "最近任务", "recent"),
+            ("", "亮屏", "开启手机屏幕", "screen_on"),
+            ("", "息屏", "关闭手机屏幕", "screen_off"),
+            ("", "重连", "重新连接", "restart"),
         ]
         self.screen_buttons = []
         self._button_animations: dict[QPushButton, QPropertyAnimation] = {}
-        for icon_name, tooltip, action in buttons:
-            button = QPushButton()
-            icon_path = resource_path(Path("assets") / icon_name)
-            if icon_path.is_file():
-                button.setIcon(QIcon(str(icon_path)))
-            button.setIconSize(QSize(20, 20))
+        for icon_name, label, tooltip, action in buttons:
+            button = QPushButton(label)
+            if icon_name:
+                icon_path = resource_path(Path("assets") / icon_name)
+                if icon_path.is_file():
+                    button.setIcon(QIcon(str(icon_path)))
+                button.setIconSize(QSize(20, 20))
             button.setToolTip(tooltip)
             button.setAccessibleName(tooltip)
-            button.setFixedSize(42, 40)
+            button.setFixedSize(52, 40)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.clicked.connect(
                 lambda _checked=False, name=action, target=button: self._button_clicked(target, name)
@@ -309,6 +310,8 @@ class FloatingToolbar(QWidget):
                 border: 1px solid #4d6384;
                 border-radius: 9px;
                 padding: 0px;
+                font-size: 13px;
+                font-weight: 600;
             }
             #floatingToolbar QPushButton:hover {
                 background: #456fca;
