@@ -163,6 +163,7 @@ from PySide6.QtGui import QCloseEvent, QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractSpinBox,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QCompleter,
@@ -178,6 +179,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
+    QRadioButton,
     QScrollArea,
     QFrame,
     QGraphicsOpacityEffect,
@@ -976,6 +978,22 @@ class MainWindow(QMainWindow):
         self.orientation_combo.currentIndexChanged.connect(self.save_settings)
         layout.addRow("显示变换", self.orientation_combo)
 
+        theme_row = QHBoxLayout()
+        theme_row.setSpacing(14)
+        self.theme_button_group = QButtonGroup(group)
+        self.dark_theme_radio = QRadioButton("深色")
+        self.light_theme_radio = QRadioButton("浅色")
+        self.dark_theme_radio.setToolTip("适合夜间使用")
+        self.light_theme_radio.setToolTip("适合白天使用")
+        self.dark_theme_radio.setChecked(True)
+        self.theme_button_group.addButton(self.dark_theme_radio)
+        self.theme_button_group.addButton(self.light_theme_radio)
+        self.theme_button_group.buttonToggled.connect(self.on_theme_toggled)
+        theme_row.addWidget(self.dark_theme_radio)
+        theme_row.addWidget(self.light_theme_radio)
+        theme_row.addStretch()
+        layout.addRow("界面主题", theme_row)
+
         self.fullscreen = QCheckBox("全屏启动")
         self.always_on_top = QCheckBox("窗口置顶")
         self.borderless = QCheckBox("无边框窗口")
@@ -1104,9 +1122,18 @@ class MainWindow(QMainWindow):
             self.startup_progress.setFormat("启动完成 %p%")
             self.set_status("准备就绪")
 
+    def selected_theme(self) -> str:
+        return "light" if self.light_theme_radio.isChecked() else "dark"
+
+    def on_theme_toggled(self, _button: QRadioButton, checked: bool) -> None:
+        if not checked or getattr(self, "_loading_settings", False):
+            return
+        self.apply_styles()
+        self.save_settings()
+
     def apply_styles(self) -> None:
         arrow_icon = (Path(__file__).resolve().parent / "assets" / "chevron-down.svg").as_posix()
-        self.setStyleSheet(
+        style = (
             """
             QMainWindow { background: #10141b; }
             QWidget { color: #edf3fb; font-size: 12px; }
@@ -1191,6 +1218,19 @@ class MainWindow(QMainWindow):
                 background: #426fe4;
             }
             QCheckBox { spacing: 6px; min-height: 23px; }
+            QRadioButton { spacing: 6px; min-height: 23px; }
+            QRadioButton::indicator {
+                width: 14px;
+                height: 14px;
+                border: 1px solid #536580;
+                border-radius: 7px;
+                background: #222b38;
+            }
+            QRadioButton::indicator:hover { border-color: #91b8ff; }
+            QRadioButton::indicator:checked {
+                border: 4px solid #426fe4;
+                background: #edf3fb;
+            }
             QPushButton {
                 min-height: 30px;
                 max-height: 30px;
@@ -1203,8 +1243,61 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background: #2d3b52; }
             QPushButton#primaryButton { min-height: 30px; max-height: 30px; background: #426fe4; border-color: #426fe4; font-weight: 600; padding: 3px 20px; }
             QPushButton#primaryButton:hover { background: #557ff0; }
-            """.replace("__ARROW_ICON__", arrow_icon)
+            """
         )
+        if self.selected_theme() == "light":
+            style += """
+            QMainWindow { background: #f2f5f9; }
+            QWidget { color: #243244; }
+            QGroupBox { border-color: #cbd5e1; background: #ffffff; }
+            QGroupBox::title { color: #536274; }
+            QLabel#title { color: #172235; }
+            QLabel#subtitle, QLabel#muted, QLabel#pathLabel { color: #68778a; }
+            QLabel#shortcutList { color: #435268; }
+            QLabel#status { color: #1f7a4b; background: #def4e7; }
+            QLabel#version { color: #223149; }
+            QComboBox, QLineEdit, QSpinBox, QPlainTextEdit {
+                border-color: #b8c5d5;
+                background: #ffffff;
+                color: #243244;
+                selection-background-color: #527bdc;
+            }
+            QComboBox:hover, QComboBox:focus {
+                border-color: #527bdc;
+                background: #f8fbff;
+            }
+            QComboBox::drop-down {
+                border-left-color: #c5cfdb;
+                background: #edf2f7;
+            }
+            QComboBox::drop-down:hover { background: #dce8f8; }
+            QComboBox QAbstractItemView {
+                border-color: #9db0c8;
+                background: #ffffff;
+                color: #243244;
+                selection-background-color: #527bdc;
+                selection-color: #ffffff;
+            }
+            QComboBox QAbstractItemView::item:hover { background: #e8f0fc; }
+            QProgressBar {
+                border-color: #b8c5d5;
+                background: #e7edf4;
+                color: #31425a;
+            }
+            QCheckBox::indicator, QRadioButton::indicator {
+                border-color: #9eacbd;
+                background: #ffffff;
+            }
+            QPushButton {
+                border-color: #b7c4d3;
+                background: #ffffff;
+                color: #243244;
+            }
+            QPushButton:hover { background: #edf4ff; }
+            QPushButton#primaryButton { background: #426fe4; border-color: #426fe4; color: #ffffff; }
+            QPushButton#primaryButton:hover { background: #557ff0; }
+            """
+        self.setStyleSheet(style.replace("__ARROW_ICON__", arrow_icon))
 
     def save_settings(self, *_args) -> None:
         if self._loading_settings:
@@ -1228,6 +1321,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("audio_output", self.audio_output_combo.currentData() or "")
         self.settings.setValue("clipboard_sync", self.clipboard_sync.isChecked())
         self.settings.setValue("orientation", self.orientation_combo.currentData())
+        self.settings.setValue("theme", self.selected_theme())
         self.settings.setValue("fullscreen", self.fullscreen.isChecked())
         self.settings.setValue("always_on_top", self.always_on_top.isChecked())
         self.settings.setValue("borderless", self.borderless.isChecked())
@@ -1274,6 +1368,9 @@ class MainWindow(QMainWindow):
         orientation = self.settings.value("orientation", "", type=str)
         orientation_index = self.orientation_combo.findData(orientation)
         self.orientation_combo.setCurrentIndex(max(0, orientation_index))
+        theme = self.settings.value("theme", "dark", type=str)
+        self.light_theme_radio.setChecked(theme == "light")
+        self.dark_theme_radio.setChecked(theme != "light")
         self.fullscreen.setChecked(get_bool("fullscreen", False))
         self.always_on_top.setChecked(get_bool("always_on_top", False))
         self.borderless.setChecked(get_bool("borderless", False))
