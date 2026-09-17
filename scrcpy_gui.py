@@ -16,6 +16,56 @@ _QT_DLL_DIRECTORY_HANDLES = []
 _QT_LIBRARY_DIRS: list[Path] = []
 
 
+_MONITOR_DEFAULTTONEAREST = 2
+_SWP_NOSIZE = 0x0001
+_SWP_NOZORDER = 0x0004
+_SWP_NOACTIVATE = 0x0010
+_SWP_NOOWNERZORDER = 0x0200
+
+
+class _NativeRect(ctypes.Structure):
+    _fields_ = [
+        ("left", wintypes.LONG),
+        ("top", wintypes.LONG),
+        ("right", wintypes.LONG),
+        ("bottom", wintypes.LONG),
+    ]
+
+
+class _NativeMonitorInfo(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD),
+        ("rcMonitor", _NativeRect),
+        ("rcWork", _NativeRect),
+        ("dwFlags", wintypes.DWORD),
+    ]
+
+
+_NATIVE_USER32 = None
+if sys.platform == "win32":
+    try:
+        _NATIVE_USER32 = ctypes.WinDLL("user32", use_last_error=True)
+        _NATIVE_USER32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+        _NATIVE_USER32.MonitorFromWindow.restype = ctypes.c_void_p
+        _NATIVE_USER32.GetMonitorInfoW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(_NativeMonitorInfo),
+        ]
+        _NATIVE_USER32.GetMonitorInfoW.restype = wintypes.BOOL
+        _NATIVE_USER32.SetWindowPos.argtypes = [
+            wintypes.HWND,
+            wintypes.HWND,
+            wintypes.INT,
+            wintypes.INT,
+            wintypes.INT,
+            wintypes.INT,
+            wintypes.UINT,
+        ]
+        _NATIVE_USER32.SetWindowPos.restype = wintypes.BOOL
+    except (AttributeError, OSError):
+        _NATIVE_USER32 = None
+
+
 def prepare_qt_dll_paths() -> None:
     locations: list[Path] = [
         Path(sys.prefix) / "Lib" / "site-packages" / "PySide6",
@@ -257,6 +307,7 @@ class FloatingToolbar(QWidget):
         super().__init__(parent)
         self.window_title = window_title
         self.window_handle_provider = window_handle_provider
+        self._tracked_hwnd = 0
         self.setWindowFlags(
             Qt.WindowType.Tool
             | Qt.WindowType.FramelessWindowHint
@@ -354,10 +405,12 @@ class FloatingToolbar(QWidget):
         if not win32gui:
             self.hide()
             return
-        if self.window_handle_provider:
-            hwnd = self.window_handle_provider()
-        else:
-            hwnd = win32gui.FindWindow(None, self.window_title)
+        candidate = self.window_handle_provider() if self.window_handle_provider else 0
+        if candidate and win32gui.IsWindow(candidate):
+            self._tracked_hwnd = int(candidate)
+        elif not self._tracked_hwnd:
+            self._tracked_hwnd = int(win32gui.FindWindow(None, self.window_title) or 0)
+        hwnd = self._tracked_hwnd
         if (
             not hwnd
             or not win32gui.IsWindow(hwnd)
@@ -367,16 +420,46 @@ class FloatingToolbar(QWidget):
             if self.isVisible():
                 self.hide()
             return
-        left, top, right, _bottom = win32gui.GetWindowRect(hwnd)
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+
+        # GetWindowRect and SetWindowPos both use native desktop pixels. Using
+        # QWidget.move() here makes Qt convert the coordinates again on a
+        # mixed-DPI setup, which is why the toolbar could be offset or jump
+        # back and forth while the scrcpy window crossed monitors.
         self.adjustSize()
+        if not self.isVisible():
+            self.show()
+
+        toolbar_hwnd = int(self.winId())
+        try:
+            toolbar_left, toolbar_top, toolbar_right, toolbar_bottom = win32gui.GetWindowRect(toolbar_hwnd)
+            toolbar_width = max(1, toolbar_right - toolbar_left)
+            toolbar_height = max(1, toolbar_bottom - toolbar_top)
+        except Exception:
+            toolbar_width = max(1, self.width())
+            toolbar_height = max(1, self.height())
+
+        work_area = self._native_work_area(hwnd)
+        if work_area:
+            work_left, work_top, work_right, work_bottom = work_area
+            gap = 8
+            x = right + gap
+            if x + toolbar_width > work_right:
+                x = left - toolbar_width - gap
+            # Keep the entire toolbar inside the monitor selected from the
+            # scrcpy window, even when neither side has enough room.
+            x = max(work_left, min(x, work_right - toolbar_width))
+            y = top + 48
+            y = max(work_top, min(y, work_bottom - toolbar_height))
+            self._move_native(toolbar_hwnd, x, y)
+            return
+
+        # Non-Windows fallback. The native path above is used by the packaged
+        # application and avoids Qt's logical/native coordinate conversion.
+        center = QPoint((left + right) // 2, (top + bottom) // 2)
+        screen = QApplication.screenAt(center)
         x = right + 8
         y = top + 48
-
-        # Resolve the monitor from scrcpy itself, not from the toolbar. The
-        # toolbar may still be on the previous monitor while scrcpy is being
-        # dragged, which used to clamp it to the wrong screen edge.
-        center = QPoint((left + right) // 2, (top + _bottom) // 2)
-        screen = QApplication.screenAt(center)
         if screen:
             available = screen.availableGeometry()
             if x + self.width() > available.right() + 1:
@@ -386,8 +469,34 @@ class FloatingToolbar(QWidget):
             x = max(available.left(), x)
             y = max(available.top(), y)
         self.move(x, y)
-        if not self.isVisible():
-            self.show()
+
+    @staticmethod
+    def _native_work_area(hwnd: int) -> tuple[int, int, int, int] | None:
+        if not _NATIVE_USER32:
+            return None
+        monitor = _NATIVE_USER32.MonitorFromWindow(hwnd, _MONITOR_DEFAULTTONEAREST)
+        if not monitor:
+            return None
+        info = _NativeMonitorInfo()
+        info.cbSize = ctypes.sizeof(_NativeMonitorInfo)
+        if not _NATIVE_USER32.GetMonitorInfoW(monitor, ctypes.byref(info)):
+            return None
+        rect = info.rcWork
+        return rect.left, rect.top, rect.right, rect.bottom
+
+    @staticmethod
+    def _move_native(hwnd: int, x: int, y: int) -> None:
+        if not _NATIVE_USER32:
+            return
+        _NATIVE_USER32.SetWindowPos(
+            hwnd,
+            0,
+            int(x),
+            int(y),
+            0,
+            0,
+            _SWP_NOSIZE | _SWP_NOZORDER | _SWP_NOACTIVATE | _SWP_NOOWNERZORDER,
+        )
 
 
 class MainWindow(QMainWindow):
