@@ -587,6 +587,7 @@ class MainWindow(QMainWindow):
         self.status_label.setMinimumWidth(84)
         self.status_label.setFixedHeight(30)
         header.addWidget(self.status_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.status_label.hide()
         self.startup_progress = QProgressBar()
         self.startup_progress.setRange(0, 100)
         self.startup_progress.setValue(0)
@@ -595,6 +596,7 @@ class MainWindow(QMainWindow):
         self.startup_progress.setFixedSize(170, 30)
         self.startup_progress.setToolTip("启动器正在后台检测 scrcpy、adb 和设备")
         header.addWidget(self.startup_progress, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.startup_progress.hide()
         main_layout.addLayout(header)
 
         # Three-column compact layout: it keeps the control cards shallow so
@@ -620,7 +622,7 @@ class MainWindow(QMainWindow):
         self.log_view.setFixedHeight(76)
         self.log_view.setPlaceholderText("这里会显示 adb、scrcpy 和更新操作的结果。")
         log_layout.addWidget(self.log_view)
-        log_group.setFixedHeight(112)
+        log_group.setFixedHeight(150)
         shortcut_group = QGroupBox("常用快捷指令")
         shortcut_layout = QVBoxLayout(shortcut_group)
         self.shortcut_list = QLabel(
@@ -1168,6 +1170,7 @@ class MainWindow(QMainWindow):
             QCheckBox { spacing: 6px; min-height: 23px; }
             QPushButton {
                 min-height: 30px;
+                max-height: 30px;
                 padding: 3px 10px;
                 border: 1px solid #3b4a62;
                 border-radius: 7px;
@@ -1175,7 +1178,7 @@ class MainWindow(QMainWindow):
                 color: #edf3fb;
             }
             QPushButton:hover { background: #2d3b52; }
-            QPushButton#primaryButton { background: #426fe4; border-color: #426fe4; font-weight: 600; padding: 5px 20px; }
+            QPushButton#primaryButton { min-height: 30px; max-height: 30px; background: #426fe4; border-color: #426fe4; font-weight: 600; padding: 3px 20px; }
             QPushButton#primaryButton:hover { background: #557ff0; }
             """.replace("__ARROW_ICON__", arrow_icon)
         )
