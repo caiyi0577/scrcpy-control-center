@@ -179,7 +179,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QProgressBar,
-    QRadioButton,
     QScrollArea,
     QFrame,
     QGraphicsOpacityEffect,
@@ -982,10 +981,19 @@ class MainWindow(QMainWindow):
         layout.addRow("显示变换", self.orientation_combo)
 
         theme_row = QHBoxLayout()
-        theme_row.setSpacing(14)
+        theme_row.setContentsMargins(0, 0, 0, 0)
+        theme_row.setSpacing(0)
+        theme_segment = QWidget()
+        theme_segment.setObjectName("themeSegment")
+        theme_segment.setLayout(theme_row)
         self.theme_button_group = QButtonGroup(group)
-        self.dark_theme_radio = QRadioButton("深色")
-        self.light_theme_radio = QRadioButton("浅色")
+        self.theme_button_group.setExclusive(True)
+        self.dark_theme_radio = QPushButton("深色")
+        self.light_theme_radio = QPushButton("浅色")
+        self.dark_theme_radio.setObjectName("themeDarkButton")
+        self.light_theme_radio.setObjectName("themeLightButton")
+        self.dark_theme_radio.setCheckable(True)
+        self.light_theme_radio.setCheckable(True)
         self.dark_theme_radio.setToolTip("适合夜间使用")
         self.light_theme_radio.setToolTip("适合白天使用")
         self.dark_theme_radio.setChecked(True)
@@ -994,8 +1002,7 @@ class MainWindow(QMainWindow):
         self.theme_button_group.buttonToggled.connect(self.on_theme_toggled)
         theme_row.addWidget(self.dark_theme_radio)
         theme_row.addWidget(self.light_theme_radio)
-        theme_row.addStretch()
-        layout.addRow("界面主题", theme_row)
+        layout.addRow("界面主题", theme_segment)
 
         self.fullscreen = QCheckBox("全屏启动")
         self.always_on_top = QCheckBox("窗口置顶")
@@ -1128,7 +1135,7 @@ class MainWindow(QMainWindow):
     def selected_theme(self) -> str:
         return "light" if self.light_theme_radio.isChecked() else "dark"
 
-    def on_theme_toggled(self, _button: QRadioButton, checked: bool) -> None:
+    def on_theme_toggled(self, _button: QPushButton, checked: bool) -> None:
         if not checked or getattr(self, "_loading_settings", False):
             return
         self.apply_styles()
@@ -1224,19 +1231,6 @@ class MainWindow(QMainWindow):
                 background: #426fe4;
             }
             QCheckBox { spacing: 6px; min-height: 23px; }
-            QRadioButton { spacing: 6px; min-height: 23px; }
-            QRadioButton::indicator {
-                width: 14px;
-                height: 14px;
-                border: 1px solid #536580;
-                border-radius: 7px;
-                background: #222b38;
-            }
-            QRadioButton::indicator:hover { border-color: #91b8ff; }
-            QRadioButton::indicator:checked {
-                border: 4px solid #426fe4;
-                background: #edf3fb;
-            }
             QPushButton {
                 min-height: 30px;
                 max-height: 30px;
@@ -1249,6 +1243,33 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background: #2d3b52; }
             QPushButton#primaryButton { min-height: 30px; max-height: 30px; background: #426fe4; border-color: #426fe4; font-weight: 600; padding: 3px 20px; }
             QPushButton#primaryButton:hover { background: #557ff0; }
+            QWidget#themeSegment { background: transparent; }
+            QPushButton#themeDarkButton, QPushButton#themeLightButton {
+                min-width: 58px;
+                min-height: 28px;
+                max-height: 28px;
+                padding: 3px 14px;
+                border: 1px solid #3b4a62;
+                border-radius: 0;
+                background: #222b38;
+                color: #edf3fb;
+            }
+            QPushButton#themeDarkButton {
+                border-top-left-radius: 7px;
+                border-bottom-left-radius: 7px;
+            }
+            QPushButton#themeLightButton {
+                border-top-right-radius: 7px;
+                border-bottom-right-radius: 7px;
+                border-left-width: 0;
+            }
+            QPushButton#themeDarkButton:hover, QPushButton#themeLightButton:hover { background: #2d3b52; }
+            QPushButton#themeDarkButton:checked, QPushButton#themeLightButton:checked {
+                background: #426fe4;
+                border-color: #426fe4;
+                color: #ffffff;
+                font-weight: 600;
+            }
             """
         )
         if self.selected_theme() == "light":
@@ -1293,13 +1314,8 @@ class MainWindow(QMainWindow):
                 background: #e7edf4;
                 color: #31425a;
             }
-            QCheckBox::indicator, QRadioButton::indicator {
+            QCheckBox::indicator {
                 border-color: #9eacbd;
-                background: #ffffff;
-            }
-            QRadioButton::indicator:hover { border-color: #527bdc; }
-            QRadioButton::indicator:checked {
-                border: 4px solid #426fe4;
                 background: #ffffff;
             }
             QPushButton {
@@ -1310,6 +1326,17 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background: #edf4ff; }
             QPushButton#primaryButton { background: #426fe4; border-color: #426fe4; color: #ffffff; }
             QPushButton#primaryButton:hover { background: #557ff0; }
+            QPushButton#themeDarkButton, QPushButton#themeLightButton {
+                border-color: #b7c4d3;
+                background: #ffffff;
+                color: #243244;
+            }
+            QPushButton#themeDarkButton:hover, QPushButton#themeLightButton:hover { background: #edf4ff; }
+            QPushButton#themeDarkButton:checked, QPushButton#themeLightButton:checked {
+                background: #426fe4;
+                border-color: #426fe4;
+                color: #ffffff;
+            }
             """
         self.setStyleSheet(style.replace("__ARROW_ICON__", arrow_icon))
 
