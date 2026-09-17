@@ -534,7 +534,6 @@ class MainWindow(QMainWindow):
         self._loading_settings = True
         self.scrcpy_process: QProcess | None = None
         self.extra_scrcpy_processes: list[QProcess] = []
-        self.multi_window_index = 0
         self.multi_apps: list[tuple[str, str]] = []
         self.multi_apps_serial = ""
         self._multi_app_lookup_busy = False
@@ -1919,9 +1918,9 @@ class MainWindow(QMainWindow):
             return
 
         self.save_settings()
-        self.multi_window_index += 1
         base_title = self.window_title_edit.text().strip() or "scrcpy"
-        title = f"{base_title} · 独立窗口 {self.multi_window_index}"
+        app_name = self.multi_app_display_name(raw_app, start_app)
+        title = f"{base_title}·{app_name}"
         args = self.build_scrcpy_args(title_override=title, new_display=True, start_app=start_app)
         process = QProcess(self)
         process.setProgram(str(self.scrcpy_path))
@@ -1970,6 +1969,27 @@ class MainWindow(QMainWindow):
         if len(prefix) > 1:
             self.log("应用名称匹配到多个结果：" + "、".join(name for name, _package in prefix[:8]))
         return ""
+
+    def multi_app_display_name(self, value: str, resolved_app: str = "") -> str:
+        """Return a readable app name for an independent scrcpy window title."""
+        text = value.strip()
+        resolved = resolved_app.strip()
+        package_candidates = {
+            candidate.casefold().lstrip("+")
+            for candidate in (text, resolved)
+            if candidate and not candidate.lstrip("+").startswith("?")
+        }
+        for name, package in self.multi_apps:
+            if package.strip().casefold() in package_candidates:
+                return name.strip() or package.strip()
+
+        if text.startswith("+?"):
+            text = text[2:].strip()
+        elif text.startswith("?"):
+            text = text[1:].strip()
+        elif text.startswith("+"):
+            text = text[1:].strip()
+        return text or "应用"
 
     @staticmethod
     def normalize_multi_app(value: str) -> str:
