@@ -20,6 +20,7 @@ ADB、启动参数、更新、快捷指令和独立应用窗口等集中控制�
 - 优先使用电脑中已经安装的 scrcpy；Single 单文件版找不到系统版本时，会使用内置的官方 scrcpy。
 - USB ADB 设备发现、自动刷新，以及设备选择记忆。
 - Android 11+ 无线调试配对、Wi-Fi ADB 连接和 USB / Wi-Fi 快速切换。
+- 正确识别 Android TLS mDNS 无线设备；无线连接或配对后自动选择新连接的设备。
 - 分辨率、帧率、码率、编码、音频、剪贴板和触摸显示等常用预设。
 - 音频出口选择：跟随系统默认、指定电脑播放设备，或 Android 13+ 手机端播放。
 - 启动前后手机屏幕控制、保持唤醒、屏幕关闭和唤醒选项。
@@ -72,6 +73,8 @@ Single 版本会将本机 WinGet 安装的官方 scrcpy 一起打包，生成
 - USB ADB device discovery with automatic refresh and selection persistence.
 - Android 11+ wireless debugging pairing, Wi-Fi ADB connect, and USB-to-Wi-Fi
   switching helpers.
+- Recognizes Android TLS mDNS wireless device IDs and selects the newly
+  connected Wi-Fi device after connection or pairing.
 - Common resolution, frame-rate, bitrate, codec, audio, clipboard, and touch
   presets.
 - Per-process Windows audio output selection for the scrcpy playback stream;

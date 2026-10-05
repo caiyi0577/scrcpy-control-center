@@ -1526,7 +1526,12 @@ class MainWindow(QMainWindow):
         process.errorOccurred.connect(lambda _error: self.log(f"进程错误：{process.errorString()}"))
         process.start()
 
-    def refresh_devices(self, finished_callback=None) -> None:
+    def refresh_devices(
+        self,
+        finished_callback=None,
+        preferred_serial: str = "",
+        prefer_wireless: bool = False,
+    ) -> None:
         if not self.adb_path:
             self.device_info.setText("未找到 adb.exe")
             if finished_callback:
@@ -1547,7 +1552,7 @@ class MainWindow(QMainWindow):
                 state = parts[1]
                 model_match = re.search(r"model:([^\s]+)", line)
                 model = model_match.group(1).replace("_", " ") if model_match else serial
-                connection = "Wi‑Fi" if ":" in serial else "USB"
+                connection = "Wi‑Fi" if self.is_wireless_serial(serial) else "USB"
                 devices.append((serial, state, model, connection))
 
             self.device_combo.blockSignals(True)
@@ -1555,10 +1560,25 @@ class MainWindow(QMainWindow):
             for serial, state, model, connection in devices:
                 label = f"{model} · {connection} · {state}"
                 self.device_combo.addItem(label, serial)
-            if previous:
-                index = self.device_combo.findData(previous)
-                if index >= 0:
-                    self.device_combo.setCurrentIndex(index)
+            preferred_index = self.device_combo.findData(preferred_serial) if preferred_serial else -1
+            if preferred_index >= 0:
+                self.device_combo.setCurrentIndex(preferred_index)
+            elif prefer_wireless:
+                wireless_indexes = [
+                    index
+                    for index, (_serial, _state, _model, connection) in enumerate(devices)
+                    if connection == "Wi‑Fi"
+                ]
+                if len(wireless_indexes) == 1:
+                    self.device_combo.setCurrentIndex(wireless_indexes[0])
+                elif previous:
+                    previous_index = self.device_combo.findData(previous)
+                    if previous_index >= 0:
+                        self.device_combo.setCurrentIndex(previous_index)
+            elif previous:
+                previous_index = self.device_combo.findData(previous)
+                if previous_index >= 0:
+                    self.device_combo.setCurrentIndex(previous_index)
             if self.device_combo.count() and self.device_combo.currentIndex() < 0:
                 self.device_combo.setCurrentIndex(0)
             self.device_combo.blockSignals(False)
@@ -1572,7 +1592,7 @@ class MainWindow(QMainWindow):
         serial = self.selected_serial()
         if serial:
             self.device_info.setText(f"序列号：{serial}")
-            self.usb_to_wifi_button.setEnabled(":" not in serial)
+            self.usb_to_wifi_button.setEnabled(not self.is_wireless_serial(serial))
         else:
             self.device_info.setText("等待 adb 设备")
             self.usb_to_wifi_button.setEnabled(False)
@@ -1582,6 +1602,14 @@ class MainWindow(QMainWindow):
         self.save_settings()
         self.update_screen_toggle_button()
         self.update_multi_open_button()
+
+    @staticmethod
+    def is_wireless_serial(serial: str) -> bool:
+        """Recognize both TCP/IP serials and Android 11+ TLS mDNS serials."""
+        normalized = serial.strip().casefold()
+        if normalized.startswith("usb:"):
+            return False
+        return ":" in normalized or normalized.endswith(("._adb-tls-connect._tcp", "._adb._tcp"))
 
     def clear_multi_app_list(self) -> None:
         """Discard the cached app mapping when the selected device changes."""
@@ -2376,7 +2404,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "需要设备地址", "请输入手机 IP 地址。")
             return
         endpoint = f"{host}:{self.wifi_port.value()}"
-        self.adb_command(["connect", endpoint], lambda _code, _output: self.refresh_devices())
+
+        def connected(_code: int, _output: str) -> None:
+            self.refresh_devices(preferred_serial=endpoint, prefer_wireless=True)
+
+        self.adb_command(["connect", endpoint], connected)
 
     def pair_wifi(self) -> None:
         address = self.pair_address.text().strip()
@@ -2384,7 +2416,10 @@ class MainWindow(QMainWindow):
         if not address or not code:
             QMessageBox.warning(self, "需要配对信息", "请输入 Android 11+ 无线调试的配对地址和配对码。")
             return
-        self.adb_command(["pair", address, code], lambda _code, _output: self.refresh_devices())
+        self.adb_command(
+            ["pair", address, code],
+            lambda _code, _output: self.refresh_devices(prefer_wireless=True),
+        )
 
     def switch_usb_to_wifi(self) -> None:
         serial = self.selected_serial()
@@ -2402,7 +2437,12 @@ class MainWindow(QMainWindow):
             host = match.group(1)
 
             def connected(_tcp_code: int, _tcp_output: str) -> None:
-                self.adb_command(["connect", f"{host}:{self.wifi_port.value()}"], lambda _c, _o: self.refresh_devices())
+                endpoint = f"{host}:{self.wifi_port.value()}"
+
+                def refreshed(_connect_code: int, _connect_output: str) -> None:
+                    self.refresh_devices(preferred_serial=endpoint, prefer_wireless=True)
+
+                self.adb_command(["connect", endpoint], refreshed)
 
             self.adb_command(["-s", serial, "tcpip", str(self.wifi_port.value())], connected)
 
