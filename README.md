@@ -9,6 +9,10 @@ wireless ADB, launch options, updates, shortcuts, and independent app windows.
 
 ![Scrcpy Control Center interface / scrcpy 控制中心界面](docs/scrcpy-control-center-current.png)
 
+**Floating shortcut toolbar / 按键悬浮窗**
+
+<img src="docs/scrcpy-control-center-toolbar.png" width="132" alt="Floating toolbar with navigation, phone volume, clipboard screenshot, screen power, and reconnect buttons / 包含导航、手机音量、剪贴板截图、屏幕开关和重连的悬浮按键栏" />
+
 ## 中文说明
 
 Scrcpy 控制中心是官方 [Genymobile scrcpy](https://github.com/Genymobile/scrcpy)
@@ -29,7 +33,7 @@ ADB、启动参数、更新、快捷指令和独立应用窗口等集中控制�
 - 全屏、置顶、无边框、旋转和镜像设置。
 - 深色 / 浅色分段按钮主题切换，复选框和下拉控件会同步适配主题。
 - 官方快捷键，包括关闭 / 开启手机屏幕（`Alt+O` / `Shift+Alt+O`）和 UHID 键盘模式（`-K`）。
-- 可选按键悬浮窗，并跟随 scrcpy 窗口在不同显示器之间移动。
+- 可选按键悬浮窗，并跟随 scrcpy 窗口在不同显示器之间移动；支持手机音量加减，以及将手机截图直接复制到电脑剪贴板，不保存文件。
 - 独立应用窗口：使用 `scrcpy --new-display` 创建互不影响的窗口；窗口标题会显示为
   `scrcpy·应用名`，例如 `scrcpy·微信`。
 - 通过 WinGet 检查并一键更新官方 Genymobile.scrcpy 软件包。
@@ -91,7 +95,9 @@ Single 版本会将本机 WinGet 安装的官方 scrcpy 一起打包，生成
 - A segmented dark/light theme selector with matching checkbox and dropdown styles.
 - Official scrcpy shortcuts for screen off/on (`Alt+O` and `Shift+Alt+O`) and
   UHID keyboard mode (`-K`).
-- Optional floating toolbar that follows the scrcpy window.
+- Optional floating toolbar that follows the scrcpy window, with phone volume
+  controls and a screenshot button that copies the phone image directly to the
+  computer clipboard without saving a file.
 - Independent app windows using `scrcpy --new-display`; Chinese app names are
   resolved through the official `scrcpy --list-apps` output, with titles such as
   `scrcpy·WeChat` or `scrcpy·微信`.

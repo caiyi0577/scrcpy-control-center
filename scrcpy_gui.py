@@ -160,7 +160,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QCloseEvent, QFont, QIcon
+from PySide6.QtGui import QCloseEvent, QFont, QIcon, QImage
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractSpinBox,
@@ -343,11 +343,15 @@ class FloatingToolbar(QWidget):
             ("toolbar-back.svg", "", "返回", "back"),
             ("toolbar-home.svg", "", "主页", "home"),
             ("toolbar-recent.svg", "", "最近任务", "recent"),
+            ("", "音量+", "调高手机音量", "volume_up"),
+            ("", "音量−", "调低手机音量", "volume_down"),
+            ("", "截图", "截取手机屏幕并复制到电脑剪贴板（不保存文件）", "screenshot"),
             ("", "亮屏", "开启手机屏幕", "screen_on"),
             ("", "息屏", "关闭手机屏幕", "screen_off"),
             ("", "重连", "重新连接", "restart"),
         ]
         self.screen_buttons = []
+        self.screenshot_button: QPushButton | None = None
         self._button_animations: dict[QPushButton, QPropertyAnimation] = {}
         for icon_name, label, tooltip, action in buttons:
             button = QPushButton(label)
@@ -366,6 +370,8 @@ class FloatingToolbar(QWidget):
             layout.addWidget(button)
             if action in {"screen_on", "screen_off"}:
                 self.screen_buttons.append(button)
+            elif action == "screenshot":
+                self.screenshot_button = button
 
         self.setStyleSheet(
             """
@@ -554,6 +560,7 @@ class MainWindow(QMainWindow):
         self.audio_outputs: list[AudioOutputDevice] = []
         self._phone_audio_process_ids: dict[QProcess, int] = {}
         self._shortcut_busy = False
+        self._screenshot_busy = False
         self.one_shot_processes: list[QProcess] = []
         self.toolbar: FloatingToolbar | None = None
         self.screen_control = ScreenPowerController(self)
@@ -2412,14 +2419,83 @@ class MainWindow(QMainWindow):
             "back": "KEYCODE_BACK",
             "home": "KEYCODE_HOME",
             "recent": "KEYCODE_APP_SWITCH",
+            "volume_up": "KEYCODE_VOLUME_UP",
+            "volume_down": "KEYCODE_VOLUME_DOWN",
         }
         if action in {"screen_on", "screen_off"}:
             self.request_scrcpy_screen_shortcut(action == "screen_on")
+        elif action == "screenshot":
+            self.capture_screenshot_to_clipboard()
         elif action in key_map:
             self.send_keyevent(key_map[action])
         elif action == "restart":
             self.stop_scrcpy()
             QTimer.singleShot(700, self.start_scrcpy)
+
+    def capture_screenshot_to_clipboard(self) -> None:
+        if self._screenshot_busy:
+            return
+        if not self.adb_path:
+            self.set_status("未找到 adb，无法截图。", False)
+            self.log("截图失败：未找到 adb.exe")
+            return
+
+        serial = self.active_serial or self.selected_serial()
+        if not serial:
+            self.set_status("请先连接并选择手机，再截图。", False)
+            self.log("截图失败：当前没有选中的 ADB 设备。")
+            return
+
+        process = QProcess(self)
+        process.setProgram(str(self.adb_path))
+        process.setArguments(["-s", serial, "exec-out", "screencap", "-p"])
+        process.setWorkingDirectory(str(self.adb_path.parent))
+        self.one_shot_processes.append(process)
+        self._screenshot_busy = True
+        if self.toolbar and self.toolbar.screenshot_button:
+            self.toolbar.screenshot_button.setEnabled(False)
+            self.toolbar.screenshot_button.setText("复制中")
+        self.set_status("正在截取手机屏幕…")
+
+        completed = False
+
+        def finish(success: bool, message: str) -> None:
+            nonlocal completed
+            if completed:
+                return
+            completed = True
+            self._screenshot_busy = False
+            if self.toolbar and self.toolbar.screenshot_button:
+                self.toolbar.screenshot_button.setText("截图")
+                self.toolbar.screenshot_button.setEnabled(True)
+            self.log(message)
+            self.set_status(message, success)
+            if process in self.one_shot_processes:
+                self.one_shot_processes.remove(process)
+            process.deleteLater()
+
+        def on_finished(exit_code: int, _exit_status) -> None:
+            image_data = bytes(process.readAllStandardOutput())
+            error_output = bytes(process.readAllStandardError()).decode(errors="replace").strip()
+            if exit_code != 0:
+                finish(False, "截图失败：" + (error_output or f"adb 退出码 {exit_code}"))
+                return
+
+            image = QImage()
+            if not image.loadFromData(image_data, "PNG"):
+                finish(False, "截图失败：adb 没有返回有效的 PNG 图片。")
+                return
+
+            QApplication.clipboard().setImage(image)
+            finish(True, f"手机截图已复制到剪贴板（{image.width()}×{image.height()}），未保存文件。")
+
+        def on_process_error(error: QProcess.ProcessError) -> None:
+            if error == QProcess.ProcessError.FailedToStart:
+                finish(False, f"截图失败：无法启动 adb（{process.errorString()}）")
+
+        process.finished.connect(on_finished)
+        process.errorOccurred.connect(on_process_error)
+        process.start()
 
     def connect_wifi(self) -> None:
         host = self.wifi_address.text().strip()
