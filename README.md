@@ -20,6 +20,8 @@ ADB、启动参数、更新、快捷指令和独立应用窗口等集中控制�
 - 优先使用电脑中已经安装的 scrcpy；Single 单文件版找不到系统版本时，会使用内置的官方 scrcpy。
 - USB ADB 设备发现、自动刷新，以及设备选择记忆。
 - Android 11+ 无线调试配对、Wi-Fi ADB 连接和 USB / Wi-Fi 快速切换。
+- 可读取已连接手机的 Wi-Fi IP，并自动填入无线 ADB 地址框。
+- 打开手机的“使用配对码配对设备”弹窗后，可尝试读取配对地址和六位码；若系统不提供弹窗文字，仍可通过 mDNS 发现配对地址，配对码需手动输入。
 - 正确识别 Android TLS mDNS 无线设备；无线连接或配对后自动选择新连接的设备。
 - 分辨率、帧率、码率、编码、音频、剪贴板和触摸显示等常用预设。
 - 音频出口选择：跟随系统默认、指定电脑播放设备，或 Android 13+ 手机端播放。
@@ -31,7 +33,7 @@ ADB、启动参数、更新、快捷指令和独立应用窗口等集中控制�
 - 独立应用窗口：使用 `scrcpy --new-display` 创建互不影响的窗口；窗口标题会显示为
   `scrcpy·应用名`，例如 `scrcpy·微信`。
 - 通过 WinGet 检查并一键更新官方 Genymobile.scrcpy 软件包。
-- 所有勾选项和输入设置会自动保存，下次启动继续使用。
+- 常用勾选项和输入设置会自动保存；一次性配对码不会保存。
 
 ### 运行要求
 
@@ -73,6 +75,8 @@ Single 版本会将本机 WinGet 安装的官方 scrcpy 一起打包，生成
 - USB ADB device discovery with automatic refresh and selection persistence.
 - Android 11+ wireless debugging pairing, Wi-Fi ADB connect, and USB-to-Wi-Fi
   switching helpers.
+- Reads the connected phone's Wi-Fi IP and fills the wireless ADB address field.
+- Can fill the pairing address and six-digit code from the phone's open pairing dialog; when the code is not exposed, mDNS can still discover the pairing address and the code must be entered manually.
 - Recognizes Android TLS mDNS wireless device IDs and selects the newly
   connected Wi-Fi device after connection or pairing.
 - Common resolution, frame-rate, bitrate, codec, audio, clipboard, and touch
@@ -93,7 +97,7 @@ Single 版本会将本机 WinGet 安装的官方 scrcpy 一起打包，生成
   `scrcpy·WeChat` or `scrcpy·微信`.
 - WinGet update check and one-click update for the official Genymobile.scrcpy
   package.
-- Settings are saved automatically in the user's Windows settings store.
+- Common settings are saved automatically; one-time pairing codes are not stored.
 
 ## Requirements
 

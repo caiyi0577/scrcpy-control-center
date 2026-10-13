@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import ctypes
 import importlib.util
+import ipaddress
 import re
 import shutil
 import subprocess
@@ -195,6 +196,11 @@ from audio_output import (
     set_process_audio_output,
 )
 from screen_power import ScreenPowerController, physical_screen_on
+from wireless_pairing import (
+    choose_pairing_endpoint,
+    pairing_service_endpoints,
+    parse_pairing_dialog,
+)
 
 
 APP_NAME = "Scrcpy Control Center"
@@ -273,6 +279,12 @@ def discover_adb(scrcpy_path: Path | None = None) -> Path | None:
     candidates: list[Path] = []
     if scrcpy_path:
         candidates.append(scrcpy_path.parent / "adb.exe")
+        candidates.append(scrcpy_path.resolve().parent / "adb.exe")
+    package_root = local_app_data() / "Microsoft" / "WinGet" / "Packages"
+    try:
+        candidates.extend(sorted(package_root.glob("Genymobile.scrcpy_*/*/adb.exe"), reverse=True))
+    except OSError:
+        pass
     path_value = shutil.which("adb")
     if path_value:
         candidates.append(Path(path_value))
@@ -1076,10 +1088,21 @@ class MainWindow(QMainWindow):
         pair_row.addWidget(self.usb_to_wifi_button)
         outer.addLayout(pair_row)
 
-        note = QLabel("手机与电脑需在同一网络；Android 11+ 可使用无线调试配对。")
+        ip_row = QHBoxLayout()
+        self.read_wifi_ip_button = QPushButton("读取手机 IP")
+        self.read_wifi_ip_button.setToolTip("读取当前选中手机的 Wi-Fi IP，并填入上方地址框")
+        self.read_wifi_ip_button.clicked.connect(self.read_phone_wifi_ip)
+        ip_row.addWidget(self.read_wifi_ip_button)
+        self.read_pairing_button = QPushButton("读取配对信息")
+        self.read_pairing_button.setToolTip("先在手机上打开“使用配对码配对设备”弹窗，再读取地址和六位配对码")
+        self.read_pairing_button.clicked.connect(self.read_pairing_info)
+        ip_row.addWidget(self.read_pairing_button)
+        ip_row.addStretch()
+        outer.addLayout(ip_row)
+        note = QLabel("打开手机无线调试的配对码弹窗后读取；电脑与手机需同网。")
         note.setObjectName("muted")
         outer.addWidget(note)
-        for field in (self.wifi_address, self.pair_address, self.pair_code):
+        for field in (self.wifi_address, self.pair_address):
             field.textChanged.connect(self.save_settings)
         return group
 
@@ -1099,8 +1122,7 @@ class MainWindow(QMainWindow):
             # Re-scan every launch so a newly installed or WinGet-updated
             # system scrcpy is selected instead of an older saved fallback.
             self.scrcpy_path = discover_scrcpy() or self.saved_scrcpy_path
-        if not self.adb_path:
-            self.adb_path = discover_adb(self.scrcpy_path)
+        self.adb_path = discover_adb(self.scrcpy_path) or self.adb_path
         self.update_path_label()
         self.save_settings()
 
@@ -1403,13 +1425,13 @@ class MainWindow(QMainWindow):
         self.settings.setValue("wifi_address", self.wifi_address.text())
         self.settings.setValue("wifi_port", self.wifi_port.value())
         self.settings.setValue("pair_address", self.pair_address.text())
-        self.settings.setValue("pair_code", self.pair_code.text())
         if self.remember_window.isChecked():
             self.settings.setValue("window_geometry", self.saveGeometry())
         self.settings.sync()
 
     def load_settings(self) -> None:
         self.settings.remove("secure_mode")
+        self.settings.remove("pair_code")
         def get_bool(key: str, default: bool) -> bool:
             return self.settings.value(key, default, type=bool)
 
@@ -1452,7 +1474,6 @@ class MainWindow(QMainWindow):
         self.wifi_address.setText(self.settings.value("wifi_address", "", type=str))
         self.wifi_port.setValue(self.settings.value("wifi_port", 5555, type=int))
         self.pair_address.setText(self.settings.value("pair_address", "", type=str))
-        self.pair_code.setText(self.settings.value("pair_code", "", type=str))
         layout_version = self.settings.value("layout_version", 0, type=int)
         if layout_version < 3:
             self.settings.remove("window_geometry")
@@ -1495,14 +1516,16 @@ class MainWindow(QMainWindow):
     def selected_serial(self) -> str:
         return self.device_combo.currentData() or ""
 
-    def adb_command(self, args: list[str], callback=None) -> None:
+    def adb_command(self, args: list[str], callback=None, *, log_output: bool = True) -> None:
         if not self.adb_path:
             self.set_status("未找到 adb", False)
             self.log("错误：未找到 adb.exe")
             return
-        self.run_one_shot(self.adb_path, args, callback)
+        self.run_one_shot(self.adb_path, args, callback, log_output=log_output)
 
-    def run_one_shot(self, program: Path | str, args: list[str], callback=None) -> None:
+    def run_one_shot(
+        self, program: Path | str, args: list[str], callback=None, *, log_output: bool = True
+    ) -> None:
         process = QProcess(self)
         process.setProgram(str(program))
         process.setArguments(args)
@@ -1514,7 +1537,7 @@ class MainWindow(QMainWindow):
             stdout = bytes(process.readAllStandardOutput()).decode(errors="replace")
             stderr = bytes(process.readAllStandardError()).decode(errors="replace")
             output = (stdout + stderr).strip()
-            if output:
+            if output and log_output:
                 self.log(output)
             if callback:
                 callback(_exit_code, output)
@@ -2409,6 +2432,136 @@ class MainWindow(QMainWindow):
             self.refresh_devices(preferred_serial=endpoint, prefer_wireless=True)
 
         self.adb_command(["connect", endpoint], connected)
+
+    @staticmethod
+    def wifi_ipv4_from_output(output: str) -> str:
+        """Read a Wi-Fi interface address from Android's ip addr or ip route output."""
+        on_wifi_interface = False
+        for line in output.splitlines():
+            interface = re.match(r"^\s*\d+:\s+([^\s:@]+)", line)
+            if interface:
+                on_wifi_interface = bool(
+                    re.fullmatch(r"(?:wlan|wifi|swlan)[\w.-]*", interface.group(1), re.I)
+                )
+            address = (
+                re.search(r"\binet\s+(\d{1,3}(?:\.\d{1,3}){3})(?:/\d+)?\b", line)
+                if on_wifi_interface else None
+            )
+            if not address:
+                address = re.search(
+                    r"\bdev\s+(?:wlan|wifi|swlan)[\w.-]*\b.*?\bsrc\s+(\d{1,3}(?:\.\d{1,3}){3})\b",
+                    line,
+                    re.I,
+                )
+            if address:
+                try:
+                    ip = ipaddress.IPv4Address(address.group(1))
+                except ipaddress.AddressValueError:
+                    continue
+                if not (ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast):
+                    return str(ip)
+        return ""
+
+    def read_phone_wifi_ip(self) -> None:
+        serial = self.selected_serial()
+        if not serial:
+            QMessageBox.warning(self, "需要设备", "请先通过 USB 或 ADB 连接手机，并在设备列表中选择它。")
+            return
+        if not self.adb_path:
+            QMessageBox.warning(self, "未找到 ADB", "未找到 adb.exe，无法读取手机的 Wi-Fi IP。")
+            return
+
+        def fill_address(address: str) -> None:
+            if self.selected_serial() != serial:
+                self.log("设备已切换，读取到的 IP 未填入地址框。")
+                return
+            self.wifi_address.setText(address)
+            self.log(f"已读取手机 Wi-Fi IP：{address}")
+
+        def got_route(_code: int, output: str) -> None:
+            address = self.wifi_ipv4_from_output(output)
+            if address:
+                fill_address(address)
+            else:
+                QMessageBox.warning(
+                    self, "无法获取 Wi-Fi IP",
+                    "未读取到当前手机的 Wi-Fi 地址。请确认手机已连接 Wi-Fi，然后重试。",
+                )
+
+        def got_interfaces(_code: int, output: str) -> None:
+            address = self.wifi_ipv4_from_output(output)
+            if address:
+                fill_address(address)
+            else:
+                self.adb_command(["-s", serial, "shell", "ip", "route"], got_route)
+
+        self.adb_command(["-s", serial, "shell", "ip", "-4", "addr", "show"], got_interfaces)
+
+    def read_pairing_info(self) -> None:
+        if not self.adb_path:
+            QMessageBox.warning(self, "未找到 ADB", "未找到 adb.exe，无法读取无线配对信息。")
+            return
+        serial = self.selected_serial()
+
+        def finish(code: str, endpoint: str) -> None:
+            if serial and self.selected_serial() != serial:
+                self.log("设备已切换，读取到的配对信息未填入。")
+                return
+            if endpoint:
+                self.pair_address.setText(endpoint)
+            if code:
+                self.pair_code.setText(code)
+            if code and endpoint:
+                self.log("已从手机配对弹窗读取地址和六位配对码。")
+            elif endpoint:
+                self.log("已发现配对地址，配对码需从手机弹窗手动输入。")
+                QMessageBox.information(
+                    self, "已读取配对地址",
+                    "配对地址已填写。手机未通过 ADB 提供六位配对码，请查看手机弹窗手动输入。",
+                )
+            elif code:
+                self.log("已读取六位配对码，配对地址需手动输入。")
+                QMessageBox.information(
+                    self, "已读取配对码", "配对码已填写；未找到配对地址，请从手机弹窗输入地址和端口。"
+                )
+            else:
+                QMessageBox.warning(
+                    self, "未找到配对信息",
+                    "请在手机上打开“无线调试 → 使用配对码配对设备”弹窗，保持弹窗显示后重试。",
+                )
+
+        def find_service(code: str, phone_ip: str = "") -> None:
+            def got_services(_exit_code: int, output: str) -> None:
+                endpoints = pairing_service_endpoints(output)
+                endpoint = choose_pairing_endpoint(endpoints, phone_ip)
+                finish(code, endpoint)
+
+            self.adb_command(["mdns", "services"], got_services, log_output=False)
+
+        def got_dialog(_exit_code: int, output: str) -> None:
+            code, endpoint = parse_pairing_dialog(output)
+            if code and endpoint:
+                finish(code, endpoint)
+                return
+
+            def got_phone_ip(_ip_exit_code: int, ip_output: str) -> None:
+                phone_ip = self.wifi_ipv4_from_output(ip_output)
+                find_service(code, phone_ip)
+
+            self.adb_command(
+                ["-s", serial, "shell", "ip", "-4", "addr", "show"],
+                got_phone_ip,
+                log_output=False,
+            )
+
+        if serial:
+            self.adb_command(
+                ["-s", serial, "exec-out", "uiautomator", "dump", "/dev/stdout"],
+                got_dialog,
+                log_output=False,
+            )
+        else:
+            find_service("")
 
     def pair_wifi(self) -> None:
         address = self.pair_address.text().strip()
