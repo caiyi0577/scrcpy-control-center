@@ -9,10 +9,6 @@ wireless ADB, launch options, updates, shortcuts, and independent app windows.
 
 ![Scrcpy Control Center interface / scrcpy 控制中心界面](docs/scrcpy-control-center-current.png)
 
-**Floating shortcut toolbar / 按键悬浮窗**
-
-<img src="docs/scrcpy-control-center-toolbar.png" width="132" alt="Floating toolbar with navigation, phone volume, clipboard screenshot, screen power, and reconnect buttons / 包含导航、手机音量、剪贴板截图、屏幕开关和重连的悬浮按键栏" />
-
 ## 中文说明
 
 Scrcpy 控制中心是官方 [Genymobile scrcpy](https://github.com/Genymobile/scrcpy)
